@@ -10,7 +10,7 @@ const staticFiles={'/':['index.html','text/html; charset=utf-8'],'/index.html':[
 function fail(msg,status=400){throw Object.assign(new Error(msg),{status})}
 function id(v){if(typeof v!=='string'||!/^p-[a-f0-9]{16}$/.test(v))fail('无效项目标识');return v}
 function safeName(v){if(typeof v!=='string'||!v.trim()||v.length>160||/[<>:"/\\|?*\x00-\x1f]/.test(v)||/[. ]$/.test(v)||/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(v))fail('文件名包含不支持的字符');return v}
-function validateProject(o){if(o?.论文设置){try{paperPresets.validate(o.论文设置)}catch(e){fail(e.message)}}if(!o||o.format!=='xuzhang-project-v1')fail('需要续章初始化模板 xuzhang-project-v1');if(typeof o.项目名称!=='string'||!o.项目名称.trim()||o.项目名称.length>120)fail('请填写项目名称（最多120字）');if(typeof o.目标!=='string')fail('目标必须是文字');if(!Array.isArray(o.内容)||!o.内容.length||o.内容.length>100)fail('内容部分需要1—100项');for(const n of o.内容){if(!n||typeof n.名称!=='string'||!n.名称.trim())fail('每个内容部分需要名称');for(const k of ['名称','标题','问题','核心表达','依据','推理','表达方式','草稿'])if(n[k]!==undefined&&(typeof n[k]!=='string'||n[k].length>100000))fail('内容字段需为文字且不超过10万字')}for(const k of ['写作要求','未决问题'])if(o[k]!==undefined&&(!Array.isArray(o[k])||o[k].some(x=>typeof x!=='string')))fail(k+'必须为文字列表');return o}
+const {validateProject}=require('./project-input');
 async function body(req){let chunks=[],length=0;for await(const c of req){length+=c.length;if(length>30*1024*1024)fail('单次请求过大，单文件上限20MB',413);chunks.push(c)}try{return JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{fail('无法读取JSON内容')}}
 async function manifest(pid){return {...JSON.parse(await fsp.readFile(path.join(ROOT,id(pid),'00_项目','项目.json'),'utf8')),root:path.join(ROOT,id(pid))}}
 function reply(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data))}
@@ -49,9 +49,7 @@ const server=http.createServer(async(req,res)=>{try{
  }
  if(req.method==='POST'&&route==='/api/backup')return reply(res,201,store.backup());
  if(req.method==='POST'&&route==='/api/projects'){
- const input=validateProject(await body(req)),pid='p-'+crypto.randomBytes(8).toString('hex'),dir=path.join(ROOT,pid),m={id:pid,name:input.项目名称,createdAt:new Date().toISOString(),root:dir,sha256:crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex'),input};
- try{await fsp.mkdir(path.join(dir,'00_项目'),{recursive:true});for(const d of ['01_草稿',...Object.values(categories)])await fsp.mkdir(path.join(dir,d));await fsp.writeFile(path.join(dir,'01_草稿','导入草稿.md'),input.内容.map(n=>'# '+n.名称+'\n\n'+(n.草稿||'')).join('\n\n'),{flag:'wx'});await fsp.writeFile(path.join(dir,'00_项目','项目.json'),JSON.stringify(m,null,2),{flag:'wx'});}catch(e){throw e}
- const revision=store.addProject(m);return reply(res,201,{...m,revision});
+ const raw=await body(req),input=validateProject(raw);delete input.requestId;delete input.allowSameName;const result=store.createProject(input,raw.requestId||crypto.randomUUID(),raw.allowSameName===true);return reply(res,result.replayed?200:201,{...result.project,revision:result.revision});
  }
  if(req.method==='GET'&&route==='/api/projects')return reply(res,200,store.projects());
  if(req.method==='POST'&&route==='/api/assets'){

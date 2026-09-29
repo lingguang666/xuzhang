@@ -32,6 +32,24 @@ function openStore(root,{sourceFile}={}){
  const get=id=>{const r=db.prepare('SELECT * FROM states WHERE id=?').get(id);return r?{id:r.id,revision:r.revision,state:JSON.parse(r.body),updatedAt:r.updated_at}:null};
  const put=(id,s,revision,origin)=>{const body=JSON.stringify(s),time=new Date().toISOString();db.prepare('INSERT INTO states VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET revision=excluded.revision,body=excluded.body,updated_at=excluded.updated_at,origin=excluded.origin').run(id,revision,body,time,origin);db.prepare('INSERT INTO revisions VALUES(?,?,?,?)').run(id,revision,body,time);return {id,revision,updatedAt:time}};
  function addProject(m){return tx(()=>{db.prepare('INSERT OR IGNORE INTO projects VALUES(?,?)').run(m.id,JSON.stringify(m));if(!get(m.id))put(m.id,initialState(m),1,'initial');return get(m.id).revision})}
+ function createProject(input,requestId,allowSameName=false){
+  if(typeof requestId!=='string'||requestId.length<8||requestId.length>120)throw error('创建项目需要8—120字的唯一请求编号');
+  input=require('./project-input').validateProject(input);
+  const stable=x=>Array.isArray(x)?x.map(stable):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,stable(x[k])])):x;
+  const digest=hash(JSON.stringify(stable({input,allowSameName}))),key='create-project:'+requestId;
+  const result=tx(()=>{const prior=db.prepare('SELECT * FROM requests WHERE id=?').get(key);if(prior){if(prior.digest!==digest)throw error('创建请求编号已用于其他内容',409);return {...JSON.parse(prior.result),replayed:true}}
+   const nameKey=n=>n.normalize('NFKC').trim().toLowerCase();
+   const existing=db.prepare('SELECT id,manifest FROM projects').all().filter(r=>nameKey(JSON.parse(r.manifest).name)===nameKey(input.项目名称));
+   if(existing.length&&!allowSameName)throw error('已有同名项目：'+existing.map(r=>r.id).join('、')+'。请选择已有项目；确需独立同名项目时显式设置allowSameName。',409);
+   const id='p-'+crypto.randomBytes(8).toString('hex'),m={id,name:input.项目名称,createdAt:new Date().toISOString(),root:path.join(root,id),sha256:hash(JSON.stringify(input)),input};
+   const s=initialState(m);validateState(id,s);db.prepare('INSERT INTO projects VALUES(?,?)').run(id,JSON.stringify(m));put(id,s,1,'created');
+   const r={project:m,revision:1,replayed:false};db.prepare('INSERT INTO requests VALUES(?,?,?)').run(key,digest,JSON.stringify(r));return r;
+  });
+  // Database commit is authoritative. A retry repairs missing initial files after an interrupted export.
+  const m=result.project;for(const dir of ['00_项目','01_草稿','02_参考资料','03_数据','04_图片','05_音视频','06_其他'])fs.mkdirSync(path.join(m.root,dir),{recursive:true});
+  for(const [file,body]of [['00_项目/项目.json',JSON.stringify(m,null,2)],['01_草稿/导入草稿.md',m.input.内容.map(n=>'# '+n.名称+'\n\n'+(n.草稿||'')).join('\n\n')]]){const target=path.join(m.root,file);if(!fs.existsSync(target)){const tmp=target+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(tmp,body,{flag:'wx'});fs.renameSync(tmp,target)}}
+  return {...result,revision:get(m.id).revision};
+ }
  function addAsset(a){db.prepare('INSERT OR IGNORE INTO assets VALUES(?,?,?)').run(a.id,a.project,JSON.stringify(a))}
  // Import legacy files once; original files remain untouched.
  if(!db.prepare('SELECT id FROM migrations WHERE id=?').get('filesystem-v1')){
@@ -84,6 +102,6 @@ function openStore(root,{sourceFile}={}){
    const result=put(id,state,old.revision+1,'mcp');db.prepare('INSERT INTO requests VALUES(?,?,?)').run(key,digest,JSON.stringify(result));return result;
   });
  }
- return {db,dbPath,get,migrate,save,mutate,addProject,addAsset,list:()=>db.prepare('SELECT id FROM states').all().map(r=>get(r.id)),projects:()=>db.prepare('SELECT manifest FROM projects').all().map(r=>JSON.parse(r.manifest)),assets:pid=>db.prepare('SELECT body FROM assets WHERE project_id=?').all(pid).map(r=>JSON.parse(r.body)),backup:()=>{const dir=path.join(root,'数据库备份');fs.mkdirSync(dir,{recursive:true});const target=path.join(dir,'续章-'+Date.now()+'-'+crypto.randomBytes(3).toString('hex')+'.sqlite');db.exec("VACUUM INTO '"+target.replace(/'/g,"''")+"'");return {path:target}},close:()=>db.close()};
+ return {db,dbPath,get,migrate,save,mutate,addProject,createProject,addAsset,list:()=>db.prepare('SELECT id FROM states').all().map(r=>get(r.id)),projects:()=>db.prepare('SELECT manifest FROM projects').all().map(r=>JSON.parse(r.manifest)),assets:pid=>db.prepare('SELECT body FROM assets WHERE project_id=?').all(pid).map(r=>JSON.parse(r.body)),backup:()=>{const dir=path.join(root,'数据库备份');fs.mkdirSync(dir,{recursive:true});const target=path.join(dir,'续章-'+Date.now()+'-'+crypto.randomBytes(3).toString('hex')+'.sqlite');db.exec("VACUUM INTO '"+target.replace(/'/g,"''")+"'");return {path:target}},close:()=>db.close()};
 }
 module.exports={openStore,validateState,initialState};

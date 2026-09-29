@@ -9,7 +9,7 @@ async function main(){
  const baseline=JSON.stringify(store.get(pid));
  const transport=new StdioClientTransport({command:process.execPath,args:[path.join(process.env.XUZHANG_TEST_APP||__dirname,'mcp-server.js')],env:{...process.env,XUZHANG_DATA_ROOT:root},stderr:'pipe'});
  const client=new Client({name:'xuzhang-verification',version:'1.0.0'});try{
- await client.connect(transport);const tools=await client.listTools();assert.equal(tools.tools.length,20);assert.match(client.getInstructions(),/不得替用户确认/);
+ await client.connect(transport);const tools=await client.listTools();assert.equal(tools.tools.length,22);assert.match(client.getInstructions(),/不得替用户确认/);
  const call=async(name,args)=>{const r=await client.callTool({name,arguments:args});return {error:r.isError===true,data:JSON.parse(r.content[0].text)}};
  const list=await call('list_projects',{});assert.ok(list.data.some(p=>p.projectId===pid));
  assert.ok((await call('read_project',{projectId:pid})).error);assert.ok(!(await call('select_project',{projectId:pid})).error);
@@ -82,7 +82,7 @@ async function main(){
  const cr=store.get(secondId),ce=cr.state.evidence.at(-1);const cl=await call('update_claim_links',{projectId:secondId,baseRevision:cr.revision,requestId:'claim-mcp-001',reason:'核对关联写入',id:'I-0',support:[ce.id],counter:[],conditions:'测试范围',boundary:'不推广',nodes:['I-0'],paragraphs:[originalText.id]});assert.ok(!cl.error,JSON.stringify(cl));const cRead=await call('read_project',{projectId:secondId});assert.equal(cRead.data.claimLinks[0].supportEvidence[0].id,ce.id);assert.equal(cRead.data.claimLinks[0].reviewComplete,false);const dr=await call('read_discussion',{projectId:secondId,discussionId:cRead.data.latestDiscussion.id});assert.ok(dr.data.changes.some(x=>x.key.startsWith('paragraph:')));assert.ok((await call('read_discussion',{projectId:pid,discussionId:cRead.data.latestDiscussion.id})).error);
  console.log('PASS: MCP asset index, Chinese search, read source, wrong project guard and verified evidence');
  console.log('PASS: discussion atomic rollback, one revision, idempotency, stale/wrong-project rejection, immutable history, new connection continuation');
- assert.equal(store.db.prepare('PRAGMA integrity_check').get().integrity_check,'ok');console.log('PASS: MCP handshake, 20 tools, read context, write, idempotency, stale conflict, decision, reply, acceptance preserved, draft protection, manuscript updates, original preserved, anchor mapping');console.log(root);
+ assert.equal(store.db.prepare('PRAGMA integrity_check').get().integrity_check,'ok');console.log('PASS: MCP handshake, 22 tools, read context, write, idempotency, stale conflict, decision, reply, acceptance preserved, draft protection, manuscript updates, original preserved, anchor mapping');console.log(root);
  }finally{await client.close();store.close()}
 }
 main().catch(e=>{console.error(e);process.exitCode=1});
