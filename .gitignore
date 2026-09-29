@@ -1,0 +1,12 @@
+node_modules/
+.build/
+dist/
+验证数据/
+项目资料库/
+data/
+*.sqlite*
+*.log
+.env*
+codex-connection.json
+app.js
+__pycache__/

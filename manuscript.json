@@ -1,0 +1,141 @@
+{
+  "title": "续章入门示例",
+  "source": "软件自带通用示例",
+  "sha256": "12feb0dffad56e670449cde37c04275d2ad49041157fb2d2f7e6837a2c87c227",
+  "paragraphs": [
+    {
+      "id": "p0001",
+      "type": "paragraph",
+      "text": "先写下研究问题与希望解决的实际困难。此处是入门示例，不包含研究结果。",
+      "runs": [
+        {
+          "start": 0,
+          "end": 34,
+          "text": "先写下研究问题与希望解决的实际困难。此处是入门示例，不包含研究结果。"
+        }
+      ],
+      "maths": [],
+      "images": [],
+      "level": 0
+    },
+    {
+      "id": "p0002",
+      "type": "paragraph",
+      "text": "说明如何获得证据，并记录尚待核查的实验条件。",
+      "runs": [
+        {
+          "start": 0,
+          "end": 22,
+          "text": "说明如何获得证据，并记录尚待核查的实验条件。"
+        }
+      ],
+      "maths": [],
+      "images": [],
+      "level": 0
+    },
+    {
+      "id": "p0003",
+      "type": "paragraph",
+      "text": "在导入真实证据后填写观察结果，保留来源和编号。",
+      "runs": [
+        {
+          "start": 0,
+          "end": 23,
+          "text": "在导入真实证据后填写观察结果，保留来源和编号。"
+        }
+      ],
+      "maths": [],
+      "images": [],
+      "level": 0
+    },
+    {
+      "id": "p0004",
+      "type": "paragraph",
+      "text": "把主张与证据关联，说明反例、适用范围及下一步。",
+      "runs": [
+        {
+          "start": 0,
+          "end": 23,
+          "text": "把主张与证据关联，说明反例、适用范围及下一步。"
+        }
+      ],
+      "maths": [],
+      "images": [],
+      "level": 0
+    }
+  ],
+  "blocks": [
+    {
+      "id": "p0001",
+      "type": "paragraph",
+      "text": "先写下研究问题与希望解决的实际困难。此处是入门示例，不包含研究结果。",
+      "runs": [
+        {
+          "start": 0,
+          "end": 34,
+          "text": "先写下研究问题与希望解决的实际困难。此处是入门示例，不包含研究结果。"
+        }
+      ],
+      "maths": [],
+      "images": [],
+      "level": 0
+    },
+    {
+      "id": "p0002",
+      "type": "paragraph",
+      "text": "说明如何获得证据，并记录尚待核查的实验条件。",
+      "runs": [
+        {
+          "start": 0,
+          "end": 22,
+          "text": "说明如何获得证据，并记录尚待核查的实验条件。"
+        }
+      ],
+      "maths": [],
+      "images": [],
+      "level": 0
+    },
+    {
+      "id": "p0003",
+      "type": "paragraph",
+      "text": "在导入真实证据后填写观察结果，保留来源和编号。",
+      "runs": [
+        {
+          "start": 0,
+          "end": 23,
+          "text": "在导入真实证据后填写观察结果，保留来源和编号。"
+        }
+      ],
+      "maths": [],
+      "images": [],
+      "level": 0
+    },
+    {
+      "id": "p0004",
+      "type": "paragraph",
+      "text": "把主张与证据关联，说明反例、适用范围及下一步。",
+      "runs": [
+        {
+          "start": 0,
+          "end": 23,
+          "text": "把主张与证据关联，说明反例、适用范围及下一步。"
+        }
+      ],
+      "maths": [],
+      "images": [],
+      "level": 0
+    }
+  ],
+  "comments": [],
+  "images": {},
+  "outline": [],
+  "counts": {
+    "paragraphs": 4,
+    "nonemptyParagraphs": 4,
+    "tables": 0,
+    "images": 0,
+    "equations": 0,
+    "comments": 0
+  },
+  "importWarnings": []
+}

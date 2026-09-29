@@ -1,0 +1,16 @@
+const crypto=require('node:crypto'),fs=require('node:fs');
+const hash=x=>crypto.createHash('sha256').update(JSON.stringify(x)).digest('hex');
+function text(s,id){if(id==='paper')return s.paper?.claim||s.project?.input?.论文设置?.claim||'';const n=s.blueprint.nodes.find(n=>n.id===id);if(!n)throw Error('章节不存在');return n.claim||''}
+function fingerprint(s,c){return hash([text(s,c.id),c.support,c.counter,c.conditions,c.boundary,c.nodes,c.paragraphs,[...c.support,...c.counter].map(id=>{const e=(s.evidence||[]).find(e=>e.id===id);return e?[e.id,e.sourceHash,e.quote,e.locator,e.purpose]:null})])}
+function update(s,a,source,actor='Codex'){text(s,a.id);const before=s.claimLinks?.[a.id];for(const k of ['support','counter','nodes','paragraphs'])if(!Array.isArray(a[k])||a[k].length>100||a[k].some(x=>typeof x!=='string')||new Set(a[k]).size!==a[k].length)throw Error('关联编号格式不正确');
+ for(const id of [...a.support,...a.counter])if(!(s.evidence||[]).some(e=>e.id===id))throw Error('证据编号不存在：'+id);
+ if(a.support.some(id=>a.counter.includes(id)))throw Error('同一条证据请明确选为支持或反例');
+ for(const id of a.nodes)if(!s.blueprint.nodes.some(n=>n.id===id))throw Error('关联章节不存在');
+ for(const id of a.paragraphs)if(!source.paragraphs.some(p=>p.id===id))throw Error('关联正文不存在');
+ if(typeof a.conditions!=='string'||typeof a.boundary!=='string'||!a.reason?.trim())throw Error('请提供条件、边界和修改理由');
+ const c={id:a.id,support:a.support,counter:a.counter,conditions:a.conditions,boundary:a.boundary,nodes:a.id==='paper'?a.nodes:[...new Set([a.id,...a.nodes])],paragraphs:a.paragraphs,updatedAt:new Date().toISOString(),actor};
+ if(a.reviewed){if(actor!=='用户')throw Error('核查完成由用户记录');if(!a.reviewNote?.trim())throw Error('请说明核查了什么');c.reviewedFingerprint=fingerprint(s,c);c.reviewNote=a.reviewNote;c.reviewedAt=c.updatedAt;}
+ s.claimLinks||={};s.claimLinks[a.id]=c;s.claimHistory||=[];s.claimHistory.push({id:a.id,before:before||null,after:structuredClone(c),reason:a.reason,time:c.updatedAt});s.events.unshift({time:c.updatedAt,text:actor+'更新主张证据关联：'+a.id});
+}
+function inspect(s,source,assets){return Object.values(s.claimLinks||{}).map(c=>{let claim;try{claim=text(s,c.id)}catch{claim='（章节已归档或移除）'}const material=id=>{const e=(s.evidence||[]).find(e=>e.id===id);if(!e)return {id,missing:true,changed:true};let changed=false,location='';if(e.sourceType==='paragraph'){const p=source.paragraphs.find(p=>p.id===e.sourceId);changed=!p||(s.manuscript?.edits?.[p.id]?.text??p.text)!==e.sourceText;location=changed?'来源段落已变化':'来源段落未变化'}else{const a=assets.find(a=>a.id===e.sourceId);try{changed=!a||a.sha256!==e.sourceHash||crypto.createHash('sha256').update(fs.readFileSync(a.path)).digest('hex')!==e.sourceHash;location=changed?'来源文件已变化':'来源文件未变化'}catch{changed=true;location='来源文件不可读'}}return {...e,changed,location}};const support=c.support.map(material),counter=c.counter.map(material);let same=false;try{same=c.reviewedFingerprint===fingerprint(s,c)}catch{}return {...c,claim,supportEvidence:support,counterEvidence:counter,hasSupport:!!support.length,sourceChanged:[...support,...counter].some(e=>e.changed),reviewComplete:same&&![...support,...counter].some(e=>e.changed),notice:'仅表示关联与核查状态，不代表论证成立'};})}
+module.exports={update,inspect,text};
