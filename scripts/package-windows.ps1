@@ -30,7 +30,7 @@ Expand-Archive -LiteralPath $wheel -DestinationPath (Join-Path $stage 'runtime/p
 & (Join-Path $stage 'runtime/node/node.exe') (Join-Path $repo 'scripts/build.cjs')
 if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
 # Explicit source allowlist; never copy a development data directory or browser export.
-$files = 'app.js','index.html','style.css','server.js','store.js','project-input.js','runtime.cjs','launcher.cjs','mcp-server.js','manuscript.json','paper-presets.js','relations.js','draft-edit.js','asset-search.js','extract_asset.py','claims.js','discussion-review.js','package.json','package-lock.json','LICENSE','README.md','THIRD_PARTY_NOTICES.md','Start-Xuzhang.cmd','Stop-Xuzhang.cmd','Open-Data.cmd'
+$files = 'app.js','index.html','style.css','server.js','store.js','project-input.js','project-storage.cjs','project-entry.cjs','version-history.js','runtime.cjs','launcher.cjs','mcp-server.js','manuscript.json','paper-presets.js','relations.js','draft-edit.js','asset-search.js','extract_asset.py','claims.js','discussion-review.js','package.json','package-lock.json','LICENSE','README.md','THIRD_PARTY_NOTICES.md','Start-Xuzhang.cmd','Stop-Xuzhang.cmd','Open-Data.cmd'
 foreach($file in $files) { Copy-Item -LiteralPath (Join-Path $repo $file) -Destination $stage }
 Copy-Item -LiteralPath (Join-Path $repo 'docs') -Destination $stage -Recurse
 Copy-Item -LiteralPath (Join-Path $repo 'node_modules') -Destination $stage -Recurse

@@ -12,13 +12,16 @@ function id(v){if(typeof v!=='string'||!/^p-[a-f0-9]{16}$/.test(v))fail('无效�
 function safeName(v){if(typeof v!=='string'||!v.trim()||v.length>160||/[<>:"/\\|?*\x00-\x1f]/.test(v)||/[. ]$/.test(v)||/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(v))fail('文件名包含不支持的字符');return v}
 const {validateProject}=require('./project-input');
 async function body(req){let chunks=[],length=0;for await(const c of req){length+=c.length;if(length>30*1024*1024)fail('单次请求过大，单文件上限20MB',413);chunks.push(c)}try{return JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{fail('无法读取JSON内容')}}
-async function manifest(pid){return {...JSON.parse(await fsp.readFile(path.join(ROOT,id(pid),'00_项目','项目.json'),'utf8')),root:path.join(ROOT,id(pid))}}
+async function manifest(pid){const m=store.projects().find(p=>p.id===id(pid));if(!m?.root)fail('项目资料库不存在',404);return m}
+const storage=require('./project-storage.cjs');
 function reply(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data))}
+let stopping=false;
 const server=http.createServer(async(req,res)=>{try{
+ if(stopping){res.setHeader('Connection','close');fail('工作站正在停止，请稍后重新打开',503)}
  const host=req.headers.host;if(!['127.0.0.1:'+PORT,'localhost:'+PORT].includes(host))fail('不支持的访问地址',403);
  const u=new URL(req.url,'http://'+host),route=u.pathname;
  if(req.method==='GET'&&route==='/api/health')return reply(res,200,{app:'xuzhang',version:require('./package.json').version,instance:require('./runtime.cjs').instance});
- if(req.method==='POST'&&route==='/api/runtime/stop'){if(!process.env.XUZHANG_STOP_TOKEN||req.headers.authorization!=='Bearer '+process.env.XUZHANG_STOP_TOKEN)fail('无效停止请求',403);reply(res,200,{stopped:true});server.close(()=>{store.db.close();process.exit(0)});server.closeIdleConnections();return}
+ if(req.method==='POST'&&route==='/api/runtime/stop'){if(!process.env.XUZHANG_STOP_TOKEN||req.headers.authorization!=='Bearer '+process.env.XUZHANG_STOP_TOKEN)fail('无效停止请求',403);stopping=true;res.setHeader('Connection','close');reply(res,200,{stopped:true});server.close(()=>{store.db.close();process.exit(0)});server.closeIdleConnections();return}
  if(req.method==='POST'){if(req.headers.origin!=='http://'+host||!req.headers['content-type']?.startsWith('application/json')||req.headers['x-xuzhang-client']!=='local-ui')fail('请从本机工作台提交',403)}
  if(req.method==='GET'&&route==='/api/claims'){const project=u.searchParams.get('project'),r=store.get(project);if(!r)fail('项目不存在',404);return reply(res,200,{revision:r.revision,claims:claims.inspect(r.state,relations.sourceFor(store,r.state),store.assets(r.state.assetsProject||project))})}
  if(req.method==='POST'&&route==='/api/claims'){const a=await body(req);if(!Number.isInteger(a.baseRevision)||typeof a.requestId!=='string')fail('请求无效');const result=store.mutate(a.projectId,a.baseRevision,a.requestId,{tool:'web-claims',...a},s=>claims.update(s,a,relations.sourceFor(store,s),'用户'));return reply(res,200,{...result,project:store.get(a.projectId)})}
@@ -29,6 +32,7 @@ const server=http.createServer(async(req,res)=>{try{
  if(req.method==='GET'&&route==='/api/asset-search')return reply(res,200,assetSearch.search(u.searchParams.get('project'),u.searchParams.get('q')));
  if(req.method==='GET'&&route==='/api/asset-text')return reply(res,200,assetSearch.read(u.searchParams.get('project'),Number(u.searchParams.get('chunkId'))));
  if(req.method==='GET'&&route==='/api/asset-pdf'){const a=assetSearch.asset(u.searchParams.get('project'),u.searchParams.get('assetId'));if(path.extname(a.name).toLowerCase()!=='.pdf')fail('此文件不是PDF');const fp=assetSearch.check(a);res.writeHead(200,{'Content-Type':'application/pdf','Content-Disposition':'inline','X-Content-Type-Options':'nosniff','Cache-Control':'no-store'});fs.createReadStream(fp).pipe(res);return}
+ if(req.method==='GET'&&route==='/api/version-history'){const h=require('./version-history'),project=u.searchParams.get('project'),revision=u.searchParams.get('revision');return reply(res,200,revision!==null?h.detail(store,project,revision==='latest'?undefined:revision,u.searchParams.has('from')?u.searchParams.get('from'):undefined):h.list(store,project,u.searchParams.has('before')?u.searchParams.get('before'):undefined))}
  if(req.method==='GET'&&route==='/api/versions')return reply(res,200,{projects:store.db.prepare('SELECT id,revision FROM states').all()});
  if(req.method==='GET'&&route==='/api/state')return reply(res,200,{projects:store.list(),database:store.dbPath});
  if(req.method==='GET'&&route==='/api/connection'){
@@ -49,8 +53,10 @@ const server=http.createServer(async(req,res)=>{try{
  }
  if(req.method==='POST'&&route==='/api/backup')return reply(res,201,store.backup());
  if(req.method==='POST'&&route==='/api/projects'){
- const raw=await body(req),input=validateProject(raw);delete input.requestId;delete input.allowSameName;const result=store.createProject(input,raw.requestId||crypto.randomUUID(),raw.allowSameName===true);return reply(res,result.replayed?200:201,{...result.project,revision:result.revision});
+ const raw=await body(req),input=validateProject(raw);delete input.requestId;delete input.allowSameName;delete input.projectDirectory;delete input.storageConfirmed;const projectDirectory=storage.confirmed(raw.projectDirectory,raw.storageConfirmed);const result=store.createProject(input,raw.requestId||crypto.randomUUID(),raw.allowSameName===true,projectDirectory);return reply(res,result.replayed?200:201,{...result.project,workstationEntry:result.workstationEntry,revision:result.revision});
  }
+ if(req.method==='GET'&&route==='/api/storage-defaults')return reply(res,200,{projectDirectory:process.env.XUZHANG_PROJECT_DIRECTORY||process.cwd(),database:store.dbPath,note:'浏览器无法识别 Codex 工作目录，请核对或粘贴当前创作项目文件夹。'});
+ if(req.method==='POST'&&route==='/api/open-local'){const b=await body(req);const target=storage.openTarget(store,b.project,b.assetId,b.mode);await storage.launchTarget(target);return reply(res,200,{opened:true,path:target.target})}
  if(req.method==='GET'&&route==='/api/projects')return reply(res,200,store.projects());
  if(req.method==='POST'&&route==='/api/assets'){
  const b=await body(req),m=await manifest(b.project),category=categories[b.category];if(!category)fail('请选择文件类别');safeName(b.name);if(typeof b.data!=='string'||!b.data.length||b.data.length%4||!/^[A-Za-z0-9+/]*={0,2}$/.test(b.data))fail('文件内容无效');const buffer=Buffer.from(b.data,'base64');if(buffer.length>20*1024*1024)fail('单文件上限20MB',413);const aid='a-'+crypto.randomBytes(8).toString('hex'),folder=path.join(m.root,category,aid);await fsp.mkdir(folder,{recursive:true});await fsp.mkdir(path.join(folder,'原文件'));const file=path.join(folder,'原文件',b.name);await fsp.writeFile(file,buffer,{flag:'wx'});const a={id:aid,project:m.id,name:b.name,category:b.category,size:buffer.length,sha256:crypto.createHash('sha256').update(buffer).digest('hex'),path:file,part:typeof b.part==='string'?b.part.slice(0,180):'',note:typeof b.note==='string'?b.note.slice(0,2000):'',createdAt:new Date().toISOString()};await fsp.writeFile(path.join(folder,'_资产记录.json'),JSON.stringify(a,null,2),{flag:'wx'});store.addAsset(a);const textIndex=await assetSearch.index(m.id,a.id);return reply(res,201,{...a,textIndex});

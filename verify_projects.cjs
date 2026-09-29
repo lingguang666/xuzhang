@@ -9,10 +9,12 @@ async function main(){
  const store=openStore(root);
  try{
   const a=await connect(),b=await connect();assert.equal((await a('get_current_project')).projectId,null);assert.equal((await b('get_current_project')).projectId,null);
-  const input={requestId:'create-paper-one',name:'论文甲',sections:[{name:'引言',claim:'甲的主张',draft:'甲的草稿'}],paperContext:{claim:'甲的全篇主张'}};
+  const storage={projectDirectory:root,storageConfirmed:true};
+  assert.equal((await a('create_project',{requestId:'unconfirmed-new',name:'未确认'})).error,true);assert.equal(store.list().length,0);
+  const input={...storage,requestId:'create-paper-one',name:'论文甲',sections:[{name:'引言',claim:'甲的主张',draft:'甲的草稿'}],paperContext:{claim:'甲的全篇主张'}};
   const one=await a('create_project',input);assert.equal(one.error,false);assert.equal(one.selected,true);
   assert.equal((await b('get_current_project')).projectId,null);
-  const two=await b('create_project',{requestId:'create-paper-two',name:'论文乙',templateId:'paper-review'});assert.equal(two.error,false);assert.notEqual(one.projectId,two.projectId);
+  const two=await b('create_project',{...storage,requestId:'create-paper-two',name:'论文乙',templateId:'paper-review'});assert.equal(two.error,false);assert.notEqual(one.projectId,two.projectId);
   assert.equal((await a('get_current_project')).projectId,one.projectId);
   const ar=await a('read_project',{projectId:one.projectId}),br=await b('read_project',{projectId:two.projectId});assert.equal(ar.nodes[0].claim,'甲的主张');assert.equal(br.paperContext.settings.claim,'');assert.equal(br.pendingComments.length,0);assert.equal(br.evidence.length,0);
   const snap=JSON.stringify(store.list());
@@ -25,10 +27,10 @@ async function main(){
   const duplicate=await b('create_project',{...input,requestId:'explicit-duplicate',allowSameName:true,selectCreated:false});assert.equal(duplicate.error,false);assert.notEqual(duplicate.projectId,one.projectId);assert.equal((await b('get_current_project')).projectId,two.projectId);
   // Replaying an earlier creation cannot silently switch an already bound connection.
   const replayOther=await b('create_project',input);assert.equal(replayOther.projectId,one.projectId);assert.equal(replayOther.selectedProjectId,two.projectId);
-  const race={requestId:'concurrent-create',name:'并发项目',selectCreated:false};const [x,y]=await Promise.all([a('create_project',race),b('create_project',race)]);assert.equal(x.error,false);assert.equal(y.error,false);assert.equal(x.projectId,y.projectId);assert.equal(store.list().length,4);
+  const race={...storage,requestId:'concurrent-create',name:'并发项目',selectCreated:false};const [x,y]=await Promise.all([a('create_project',race),b('create_project',race)]);assert.equal(x.error,false);assert.equal(y.error,false);assert.equal(x.projectId,y.projectId);assert.equal(store.list().length,4);
   // A new connection starts unbound; retry after reconnect resolves the same persisted creation.
   const c=await connect();assert.equal((await c('get_current_project')).projectId,null);assert.equal((await c('create_project',input)).projectId,one.projectId);
-  for(const r of store.list()){const m=r.state.project;assert.equal(m.root,path.join(root,r.id));assert.ok(fs.existsSync(path.join(m.root,'00_项目/项目.json')));assert.ok(fs.existsSync(path.join(m.root,'01_草稿/导入草稿.md')))}
+  for(const r of store.list()){const m=r.state.project;assert.equal(m.root,path.join(root,'续章资料',r.id));assert.ok(fs.existsSync(path.join(m.root,'00_项目/项目.json')));assert.ok(fs.existsSync(path.join(m.root,'01_草稿/导入草稿.md')))}
   assert.equal(store.db.prepare('PRAGMA integrity_check').get().integrity_check,'ok');
   console.log('PASS: MCP creation, templates/drafts, isolated connections, cross-project read/write/index guards, same-name confirmation, retry/reconnect/concurrent idempotency, no silent rebind, independent folders');
  }finally{for(const c of clients)await c.close();store.close()}

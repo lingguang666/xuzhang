@@ -51,6 +51,7 @@ document.addEventListener('submit',e=>{if(e.target.id==='comment-form'){e.preven
 /* PAPER_EXTENSION */
 /* IMPORTS_EXTENSION */
 /* RELATIONS_EXTENSION */
+/* VERSION_EXTENSION */
 /* PERSISTENCE_EXTENSION */
 shell();
 bootStorage();
