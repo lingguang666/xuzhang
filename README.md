@@ -8,7 +8,7 @@
 
 ## 下载即用
 
-1. 在 [Releases](https://github.com/gaoge1314/xuzhang/releases) 下载 `xuzhang-…-windows-x64.zip`，不要下载 Source code 作为运行包。
+1. 在 [Releases](https://github.com/lingguang666/xuzhang/releases) 下载 `xuzhang-…-windows-x64.zip`，不要下载 Source code 作为运行包。
 2. 右键“全部解压”，放到一个固定目录。不要在压缩包预览里直接运行。
 3. 双击 **Start-Xuzhang.cmd**。它会打开浏览器里的续章。
 4. 点击“初始化导入”，选择论文模板，填写或导入 Codex 整理的 JSON。
